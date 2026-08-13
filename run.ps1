@@ -15,8 +15,10 @@ for ($i = 0; $i -lt 10; $i++) {
     else { break }
 }
 
-# Clear stale bytecode so code changes always take effect.
 Remove-Item -Recurse -Force "__pycache__" -ErrorAction SilentlyContinue
 
 Write-Host "Starting Streamlit on http://localhost:$port ..."
-& ".\.venv\Scripts\python.exe" -m streamlit run app.py --server.port $port
+& ".\.venv\Scripts\python.exe" -m streamlit run app.py `
+    --server.port $port `
+    --server.headless true `
+    --browser.gatherUsageStats false

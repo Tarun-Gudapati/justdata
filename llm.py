@@ -15,6 +15,10 @@ MAX_TOKENS = int(os.getenv("CLAUDE_MAX_TOKENS", "8192"))
 usage = {"input_tokens": 0, "output_tokens": 0, "calls": 0}
 
 
+class CancelledError(Exception):
+    """Raised when the user hits Stop while Claude is streaming."""
+
+
 def _track_usage(response):
     usage["input_tokens"] += response.usage.input_tokens
     usage["output_tokens"] += response.usage.output_tokens
@@ -37,27 +41,59 @@ def _response_text(response):
     return text_blocks[0].text.strip()
 
 
-def _ask(prompt, retries=1):
-    """Call Claude and return text. Retries once if thinking ate the whole reply."""
+def _cancelled(cancel_event) -> bool:
+    return cancel_event is not None and cancel_event.is_set()
+
+
+def _ask(prompt, retries=1, cancel_event=None):
+    """Call Claude and return text. Retries once if thinking ate the whole reply.
+
+    Streams tokens so Stop can cut the request mid-flight via cancel_event.
+    """
     last_err = None
     for _ in range(retries + 1):
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=MAX_TOKENS,
-            # NL→SQL doesn't need extended thinking — it burns tokens and
-            # sometimes returns *only* a ThinkingBlock (no SQL text).
-            thinking={"type": "disabled"},
-            messages=[{"role": "user", "content": prompt}],
-        )
+        if _cancelled(cancel_event):
+            raise CancelledError("Stopped.")
+        parts = []
+        try:
+            with client.messages.stream(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                # NL→SQL doesn't need extended thinking — it burns tokens and
+                # sometimes returns *only* a ThinkingBlock (no SQL text).
+                thinking={"type": "disabled"},
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                for text in stream.text_stream:
+                    if _cancelled(cancel_event):
+                        raise CancelledError("Stopped.")
+                    parts.append(text)
+                response = stream.get_final_message()
+        except CancelledError:
+            raise
+        except Exception:
+            # Fall back to a non-streaming call if stream isn't available.
+            if _cancelled(cancel_event):
+                raise CancelledError("Stopped.")
+            response = client.messages.create(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                thinking={"type": "disabled"},
+                messages=[{"role": "user", "content": prompt}],
+            )
         _track_usage(response)
         try:
             return _response_text(response)
         except RuntimeError as err:
+            # Streaming sometimes yields text we already have; prefer that.
+            joined = "".join(parts).strip()
+            if joined:
+                return joined
             last_err = err
     raise last_err
 
 
-def generate_sql(schema, question, dialect=None):
+def generate_sql(schema, question, dialect=None, cancel_event=None):
     dialect = dialect or db.get_dialect()
     prompt = f"""You are an expert at writing {dialect} SQL queries.
 Given the database schema below, write ONE {dialect} SQL query that answers the question.
@@ -73,10 +109,10 @@ Rules:
 - Write a read-only SELECT query only.
 - No explanation, no comments, no markdown code fences.
 """
-    return _ask(prompt)
+    return _ask(prompt, cancel_event=cancel_event)
 
 
-def summarize_answer(question, sql, rows, truncated=False):
+def summarize_answer(question, sql, rows, truncated=False, cancel_event=None):
     """Turn raw result rows into a one-sentence human answer.
 
     Second LLM call: give Claude the question + SQL + rows, ask for
@@ -97,7 +133,7 @@ Question: {question}
 SQL that ran: {sql}
 Rows returned: {rows}
 """
-    return _ask(prompt)
+    return _ask(prompt, cancel_event=cancel_event)
 
 
 if __name__ == "__main__":

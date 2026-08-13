@@ -3,3 +3,9 @@
 __pycache__/
 *.pyc
 .streamlit/secrets.toml
+recents.db
+demo.db
+chroma_db/
+.DS_Store
+Thumbs.db
+*.log
