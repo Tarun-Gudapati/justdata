@@ -151,17 +151,42 @@ def setup_database():
 # ---------------------------------------------------------------------------
 # Queries
 # ---------------------------------------------------------------------------
-def run_query(sql, max_rows=None):
+# Active connection for the in-flight user query — Stop calls interrupt/cancel.
+_active_conn = None
+
+
+def cancel_active_query():
+    """Best-effort cancel of the SQL currently running (if any)."""
+    conn = _active_conn
+    if conn is None:
+        return
+    try:
+        if DB_KIND == "mssql":
+            conn.cancel()
+        else:
+            conn.interrupt()
+    except Exception:  # noqa: BLE001 - cancel is best-effort
+        pass
+
+
+def run_query(sql, max_rows=None, cancel_event=None):
     """Run SQL, return (column_names, rows, truncated). Rows are plain tuples.
 
     At most `max_rows` rows are returned (default MAX_ROWS; pass 0 for no cap,
     which the schema-discovery queries below do).
     """
+    global _active_conn
+    if cancel_event is not None and cancel_event.is_set():
+        raise RuntimeError("Stopped.")
+
     limit = MAX_ROWS if max_rows is None else max_rows
     conn = _connect()
+    _active_conn = conn
     try:
         cursor = conn.cursor()
         cursor.execute(sql)
+        if cancel_event is not None and cancel_event.is_set():
+            raise RuntimeError("Stopped.")
         columns = [d[0] for d in cursor.description] if cursor.description else []
         if limit:
             # One extra row tells us whether there were more behind the cap.
@@ -173,6 +198,7 @@ def run_query(sql, max_rows=None):
             truncated = False
         return columns, rows, truncated
     finally:
+        _active_conn = None
         conn.close()
 
 

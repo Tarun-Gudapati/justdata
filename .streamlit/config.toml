@@ -8,3 +8,6 @@ font = "serif"
 
 [client]
 toolbarMode = "minimal"
+
+[server]
+headless = true
