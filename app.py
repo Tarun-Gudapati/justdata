@@ -1,4 +1,4 @@
-"""Safe Financial — Ask your database.
+"""justdata — Ask your database.
 
 Claude-style light empty state: a warm serif greeting centered in the viewport,
 with a rounded input (small red send arrow) beneath it. Left sidebar holds
@@ -18,11 +18,11 @@ import llm
 import recents
 import store
 
-BRAND_RED = "#e2231a"      # Safe Financial red
-BRAND_ORANGE = "#f5821f"   # Safe Financial orange
+BRAND_RED = "#e2231a"      # justdata brand red
+BRAND_ORANGE = "#f5821f"   # justdata brand orange
 
 st.set_page_config(
-    page_title="Safe Financial · Ask",
+    page_title="justdata · Ask",
     page_icon="✳",
     layout="centered",
     initial_sidebar_state="expanded",
@@ -344,7 +344,7 @@ def chat_bar(placeholder: str, *, stop_mode: bool = False, form_key: str = "chat
 # Sidebar — New chat, settings + persistent Recents
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown(f"#### <span style='color:{BRAND_RED}'>Safe Financial</span>",
+    st.markdown(f"#### <span style='color:{BRAND_RED}'>justdata</span>",
                 unsafe_allow_html=True)
     st.caption(f"Data source: {db.DB_KIND.upper()} · {indexed_tables} tables indexed")
 

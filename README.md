@@ -1,7 +1,24 @@
-# Safe Financial · Ask (nlp2sql)
+# justdata
 
 Ask your database in plain English. The app retrieves relevant table schemas,
 has Claude write a read-only SQL query, runs it, and shows the result.
+
+## What it does
+
+justdata lets people who don't write SQL query a database safely. You type a
+question like "how many funded loans are there", and the app:
+
+1. **Retrieves** the most relevant table schemas from a ChromaDB vector index
+   (so it works on databases with hundreds of tables without blowing the
+   context window).
+2. **Generates** one read-only SQL query with Claude, in the right dialect
+   (SQLite or T-SQL).
+3. **Runs** it and shows the rows, with an optional plain-English summary of
+   the answer.
+
+Safety is layered in: only `SELECT`/`WITH` statements pass the guard, results
+are row-capped (`MAX_ROWS`), SQL Server queries get a timeout, and the
+recommended setup is a read-only database user.
 
 ## Quick start
 

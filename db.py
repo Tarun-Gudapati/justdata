@@ -30,7 +30,7 @@ def get_dialect() -> str:
 
 
 def describe_source() -> str:
-    """Short id for the active database, e.g. "mssql:beta-sql/OnlineApps".
+    """Short id for the active database, e.g. "mssql:myserver/MyDatabase".
 
     The vector index is stamped with this so switching databases can be
     detected and the old vectors thrown away.
